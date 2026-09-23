@@ -1,0 +1,26 @@
+Pegá acá los archivos que quieras usar, copiados TAL CUAL desde tu carpeta
+real de Carbonite (no los puedo incluir yo porque son archivos del juego,
+no vinieron en lo que subiste).
+
+LA FLECHA REAL DE PANTALLA COMPLETA (modulo Nx.HUD de Carbonite, esta es
+la que corresponde a este addon) tiene 5 estilos visuales, elegís el que
+más te guste con /ff icon (sin nombre, va pasando al siguiente):
+
+Copiar DESDE (Interface\AddOns\Carbonite\Gfx\Map\) HACIA esta carpeta (Media):
+  HUDArrow.tga       -> /ff icon arrow      (default)
+  HUDArrowChip.tga   -> /ff icon chip 
+  HUDArrowGloss.tga  -> /ff icon gloss
+  HUDArrowGlow.tga   -> /ff icon glow 
+  HUDArrowNeon.tga   -> /ff icon neon 
+
+No hace falta copiar los 5: alcanza con el que vayas a usar (por default,
+HUDArrow.tga).
+
+LOS DOS DE MAPA (IconWayTarget / IconArrowGrad) SE SACARON del addon:
+esos .tga nunca estuvieron en esta carpeta, así que elegirlos dejaba la
+flecha invisible. WoW no avisa cuando falta una textura.
+
+No renombres ningún archivo. Con eso el addon usa esas imágenes SIN
+depender de que Carbonite esté instalado ni activado. Si no copiás
+ninguno, "/ff icon blizz" sigue andando igual (usa una textura nativa
+del juego que no necesita nada externo).

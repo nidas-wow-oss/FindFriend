@@ -1,0 +1,8 @@
+# Arte de Carbonite: son archivos del juego, no son mios para redistribuir.
+# El addon los carga desde esta carpeta y Media/LEEME.txt explica de donde
+# copiarlos. Sin ellos, "/ff icon blizz" funciona igual.
+Media/*.tga
+
+# Notas de ingenieria inversa: quedan solo en local, tienen codigo de
+# Carbonite copiado textual.
+carbonite_reverse_engineering_notes.md

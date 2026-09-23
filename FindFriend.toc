@@ -1,0 +1,11 @@
+## Interface: 30300
+## Title: Find Friend |cff808080(standalone test)|r
+## Notes: Flecha brujula para encontrar a un companero de grupo/banda. Logica extraida y reimplementada a partir de la funcion "Track Player" de Carbonite (Nx.Map:DrT1 / Nx.Com:UpI / Nx.Map:UpG). Pensado para probarse suelto antes de integrarlo a Nidhaus_UnitFrames.
+## Author: Nidhaus
+## Version: 0.1.0
+## SavedVariables: FF_Settings
+## DefaultState: Enabled
+## LoadOnDemand: 0
+
+FindFriend.lua
+FindFriend_Arrow.lua
