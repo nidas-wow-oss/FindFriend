@@ -6,11 +6,16 @@ carrier, or on both at once.
 
 ## What it does
 
-An arrow on screen points at whoever you are tracking, showing their name, the
-distance to them and an estimated time to reach them. It rotates as you turn,
-so "straight ahead" always means straight ahead. The arrow turns blue and
-glows when you are aimed at them, and green when you are basically on top of
-them.
+<img src="docs/arrow-aimed.png" alt="aimed at them" height="150"> <img src="docs/arrow-turn.png" alt="turn right" height="150">
+
+An arrow on screen points at whoever you are tracking, showing their name and
+the distance to them. It rotates as you turn, so "straight ahead" always means
+straight ahead.
+
+The colour tells you how well you are aimed: **pale blue and glowing** when
+they are in front of you (left), **yellow** when you still have to turn
+(right), and green when you are basically on top of them. It also shows an
+estimated time to reach them once it knows how fast you move.
 
 You can track up to **3 people at the same time**, one arrow each.
 
