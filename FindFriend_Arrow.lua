@@ -75,14 +75,24 @@
 
 local FF = FF
 
-local ROW_W, ROW_H = 48, 74   -- 48 de flecha + los dos textos de abajo
+-- 48 de flecha + los textos de abajo. La tercera linea (la vida) solo
+-- ocupa lugar cuando esta encendida: con tres flechas, reservarla siempre
+-- serian 36 pixeles de aire por nada.
+local ROW_W        = 48
+local ROW_H_BASE   = 74
+local ROW_H_HEALTH = 86
+
+local function RowHeight()
+    return (FF_Settings and FF_Settings.showHealth) and ROW_H_HEALTH or ROW_H_BASE
+end
 
 --=========================================================================--
 -- Iconos
 --
--- Los nombres son cortos a proposito: se escriben en el chat a mano. Los
--- viejos ("hud", "hud-chip", ...) siguen entrando por LEGACY para no
--- romperle la configuracion guardada a nadie.
+-- SE ELIGEN POR NUMERO: /ff icon 1 .. /ff icon 6. Es lo mas corto de
+-- escribir y no hay que acordarse de ningun nombre. Los nombres viejos
+-- siguen entrando por LEGACY, asi que nadie pierde su configuracion
+-- guardada ni tiene que reaprender nada.
 --
 -- SE SACARON "pin" Y "trail". Eran los dos iconos del sistema de MAPA de
 -- Carbonite (IconWayTarget / IconArrowGrad) y NUNCA ANDUVIERON: esos dos
@@ -102,19 +112,24 @@ local ROW_W, ROW_H = 48, 74   -- 48 de flecha + los dos textos de abajo
 local MEDIA = "Interface\\AddOns\\FindFriend\\Media\\"
 
 local ICON_STYLES = {
-    { key = "arrow", file = MEDIA .. "HUDArrow"      },  -- Nx.HUD, el liso (default)
-    { key = "chip",  file = MEDIA .. "HUDArrowChip"  },
-    { key = "gloss", file = MEDIA .. "HUDArrowGloss" },
-    { key = "glow",  file = MEDIA .. "HUDArrowGlow"  },
-    { key = "neon",  file = MEDIA .. "HUDArrowNeon"  },
-    { key = "blizz", file = "Interface\\Minimap\\ROTATING-MINIMAPGUIDEARROW" },
+    { key = "1", file = MEDIA .. "HUDArrow"      },  -- Nx.HUD, el liso (default)
+    { key = "2", file = MEDIA .. "HUDArrowChip"  },
+    { key = "3", file = MEDIA .. "HUDArrowGloss" },
+    { key = "4", file = MEDIA .. "HUDArrowGlow"  },
+    { key = "5", file = MEDIA .. "HUDArrowNeon"  },
+    { key = "6", file = "Interface\\Minimap\\ROTATING-MINIMAPGUIDEARROW" },
 }
 
+-- Nombres aceptados ademas del numero. Los de la izquierda son los que
+-- alguien pueda tener guardados de versiones anteriores; si no se
+-- reconoce ninguno, NormalizeIconStyle cae al 1 y no rompe nada.
 local LEGACY = {
-    hud = "arrow", ["hud-chip"] = "chip", ["hud-gloss"] = "gloss",
-    ["hud-glow"] = "glow", ["hud-neon"] = "neon", blizzard = "blizz",
-    -- Si alguien tenia uno de los dos rotos guardado, NormalizeIconStyle
-    -- no lo encuentra y cae solo al primero de la lista.
+    arrow = "1", hud = "1",
+    chip  = "2", ["hud-chip"]  = "2",
+    gloss = "3", ["hud-gloss"] = "3",
+    glow  = "4", ["hud-glow"]  = "4",
+    neon  = "5", ["hud-neon"]  = "5",
+    blizz = "6", blizzard      = "6",
 }
 
 local FILE_BY_KEY, INDEX_BY_KEY = {}, {}
@@ -123,7 +138,14 @@ for i, s in ipairs(ICON_STYLES) do
     INDEX_BY_KEY[s.key] = i
 end
 
-function FF:IsIconStyle(key) return key ~= nil and FILE_BY_KEY[key] ~= nil end
+-- Acepta el numero y tambien los nombres viejos. Los reconocia solo al
+-- leer la configuracion guardada, asi que "/ff icon glow" contestaba que
+-- no existia aunque el valor si estuviera soportado.
+function FF:IsIconStyle(key)
+    if key == nil then return false end
+    key = strlower(key)
+    return (FILE_BY_KEY[key] or LEGACY[key]) ~= nil
+end
 
 function FF:NormalizeIconStyle(key)
     key = key and strlower(key) or nil
@@ -140,9 +162,7 @@ function FF:NextIconStyle()
 end
 
 function FF:IconStyleList()
-    local t = {}
-    for i, s in ipairs(ICON_STYLES) do t[i] = s.key end
-    return table.concat(t, " | ")
+    return "1-" .. #ICON_STYLES
 end
 
 -- para que los tests puedan verificar sin duplicar los strings
@@ -161,6 +181,14 @@ local COLOR_OTHERZ = { 0.5, 0.7, 1, 0.9 }
 local COLOR_ONTOP   = { .2, 1, .2, .4 } -- practicamente encima del objetivo
 local COLOR_ALIGNED = { .7, .7, 1, 1 }  -- apuntando bien -- este brilla (blend ADD)
 local COLOR_OFFAIM  = { 1, 1, .5, .9 }  -- todavia hay que girar
+
+-- La vida se colorea como una barra de vida, que es lo que uno ya sabe
+-- leer sin pensar: verde arriba del 50%, amarillo hasta 25%, rojo abajo.
+local function HealthColor(pct)
+    if pct > 50 then return "|cff40ff40"
+    elseif pct > 25 then return "|cffffd100"
+    else return "|cffff4040" end
+end
 
 -- SUAVIZADO DEL RUMBO.
 --
@@ -191,7 +219,7 @@ local ALIGN_EXIT  = 9
 --=========================================================================--
 
 local container = CreateFrame("Frame", "FFArrowFrame", UIParent)
-container:SetSize(ROW_W, ROW_H)
+container:SetSize(ROW_W, ROW_H_BASE)   -- RefreshArrows le pone el alto real
 container:SetPoint("CENTER", Minimap, "BOTTOM", 0, -40)
 container:SetMovable(true)
 container:SetClampedToScreen(true)
@@ -228,8 +256,8 @@ end
 local function NewRow(i)
     local r = {}
     r.frame = CreateFrame("Frame", nil, container)
-    r.frame:SetSize(ROW_W, ROW_H)
-    r.frame:SetPoint("TOP", container, "TOP", 0, -(i - 1) * ROW_H)
+    r.frame:SetSize(ROW_W, RowHeight())
+    r.frame:SetPoint("TOP", container, "TOP", 0, -(i - 1) * RowHeight())
 
     r.frame:EnableMouse(true)
     r.frame:RegisterForDrag("LeftButton")
@@ -280,6 +308,9 @@ local function NewRow(i)
     r.distText = r.frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     r.distText:SetPoint("TOP", r.nameText, "BOTTOM", 0, -1)
 
+    r.hpText = r.frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    r.hpText:SetPoint("TOP", r.distText, "BOTTOM", 0, -1)
+
     r.etaTicks, r.etaText = 0, ""
     r.frame:Hide()
     return r
@@ -314,8 +345,15 @@ end
 function FF:RefreshArrows()
     local n = #self.tracked
 
+    local h = RowHeight()
     for i = 1, n do
         local r = GetRow(i)
+        -- El alto cambia al prender o apagar la vida, asi que se reubican
+        -- siempre: si no, al encenderla la segunda flecha se monta sobre
+        -- el texto de la primera.
+        r.frame:SetHeight(h)
+        r.frame:ClearAllPoints()
+        r.frame:SetPoint("TOP", container, "TOP", 0, -(i - 1) * h)
         r.name = self.tracked[i]
         -- Estado de rumbo en cero: esta fila puede venir de otro jugador.
         r.hasBearing, r.smDX, r.smDY = false, nil, nil
@@ -332,7 +370,7 @@ function FF:RefreshArrows()
     if n == 0 then
         container:Hide()
     else
-        container:SetHeight(n * ROW_H)
+        container:SetHeight(n * h)
         container:Show()
     end
 
@@ -436,15 +474,24 @@ local function RefreshRowInfo(r)
     local name = r.name
     if not name then return end
 
-    local tx, ty, tzone, source = FF:ResolveTarget(name)
+    local tx, ty, tzone, source, hp = FF:ResolveTarget(name)
     local mp = FF.myPos
 
     if not tx or not mp then
         Poner(r.nameText, name .. "  |cffaaaaaa(searching...)|r")
         Poner(r.distText, "")
+        Poner(r.hpText, "")
         r.tex:SetVertexColor(unpack(COLOR_STALE))
         r.hasBearing = false
         return
+    end
+
+    -- La vida se muestra aunque este en otra zona: sigue siendo util saber
+    -- como viene el otro aunque no puedas ir hacia el.
+    if FF_Settings.showHealth and hp then
+        Poner(r.hpText, format("%s%d %%|r", HealthColor(hp), hp))
+    else
+        Poner(r.hpText, "")
     end
 
     if mp.zone ~= tzone then
@@ -478,10 +525,12 @@ local function RefreshRowInfo(r)
     local etaText = ETATexto(r, FF.playerSpeedYps)
 
     Poner(r.nameText, name)
+    -- Sin el "~" de "aproximadamente": la distancia es estimada igual, pero
+    -- el simbolo no agregaba nada y ensuciaba la linea.
     if dist then
-        Poner(r.distText, format("~%.0f %s%s%s", dist, unitLabel, etaText, sourceTag))
+        Poner(r.distText, format("%.0f %s%s%s", dist, unitLabel, etaText, sourceTag))
     else
-        Poner(r.distText, format("~%.0f%% of map%s%s", pct, etaText, sourceTag))
+        Poner(r.distText, format("%.0f%% of map%s%s", pct, etaText, sourceTag))
     end
 end
 

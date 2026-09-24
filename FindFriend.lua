@@ -105,7 +105,14 @@ function FF:SamplePositions(units)
         for _, u in ipairs(units) do
             local x, y = GetPlayerMapPosition(u)
             if x and not (x == 0 and y == 0) then
-                out[u] = { x = x * 100, y = y * 100 }
+                -- La vida se lee aca mismo: es la misma unidad y el mismo
+                -- momento, asi que no hace falta recorrerlos otra vez.
+                local hp, hpMax = UnitHealth(u), UnitHealthMax(u)
+                local pct
+                if hp and hpMax and hpMax > 0 then
+                    pct = math.floor(hp / hpMax * 100 + 0.5)
+                end
+                out[u] = { x = x * 100, y = y * 100, hp = pct }
             end
         end
     end
@@ -340,7 +347,7 @@ function FF:Sample()
         local name = nameOfUnit[unit]
         if name then
             self.reports[self:Key(name)] = {
-                x = p.x, y = p.y, zone = zone, t = now, source = "live",
+                x = p.x, y = p.y, hp = p.hp, zone = zone, t = now, source = "live",
             }
         end
     end
@@ -380,7 +387,14 @@ function FF:BroadcastPosition()
     if not self.myPos then return end
     if (GetTime() - self.myPos.t) > self.STALE_AFTER then return end
 
-    local msg = format("PING:%s:%.1f:%.1f", self.myPos.zone or "?", self.myPos.x, self.myPos.y)
+    -- El quinto campo es la vida. Va al final y es OPCIONAL: el que lee
+    -- parte el mensaje sin limite de trozos y toma lo que haya, asi que un
+    -- mensaje viejo de cuatro campos se sigue entendiendo.
+    local hp, hpMax = UnitHealth("player"), UnitHealthMax("player")
+    local pct = (hp and hpMax and hpMax > 0) and math.floor(hp / hpMax * 100 + 0.5) or ""
+
+    local msg = format("PING:%s:%.1f:%.1f:%s",
+        self.myPos.zone or "?", self.myPos.x, self.myPos.y, tostring(pct))
 
     if GetNumRaidMembers() > 0 then
         SendAddonMessage(self.ADDON_PREFIX, msg, "RAID")
@@ -421,12 +435,17 @@ function FF:OnCommReceived(sender, message)
         return
     end
 
-    local kind, zone, x, y = strsplit(":", message, 4)
+    -- Sin limite de trozos: asi entra el quinto campo (la vida) y siguen
+    -- entrando los mensajes viejos, que solo traen cuatro.
+    local kind, zone, x, y, hp = strsplit(":", message)
     if kind ~= "PING" then return end
     x, y = tonumber(x), tonumber(y)
     if not x or not y then return end
 
-    self.reports[self:Key(sender)] = { x = x, y = y, zone = zone, t = GetTime(), source = "comm" }
+    self.reports[self:Key(sender)] = {
+        x = x, y = y, hp = tonumber(hp), zone = zone,
+        t = GetTime(), source = "comm",
+    }
 end
 
 -- Mejor posicion conocida del objetivo (ya sea que llegue por la API de
@@ -435,7 +454,7 @@ function FF:ResolveTarget(name)
     if not name then return nil end
     local r = self.reports[self:Key(name)]
     if r and (GetTime() - r.t) <= self.STALE_AFTER then
-        return r.x, r.y, r.zone, r.source
+        return r.x, r.y, r.zone, r.source, r.hp
     end
     return nil
 end
@@ -648,8 +667,8 @@ SlashCmdList["FF"] = function(msg)
         print("  /ff off [name]    - stop tracking everyone, or just that one")
         print("  /ff units         - switch between meters and yards")
         print("  /ff icon [name]   - next arrow icon, or pick one: " .. FF:IconStyleList())
+        print("  /ff hp            - show or hide their health percentage")
         print("  /ff test          - try the arrow without needing another player")
-        print("  /ff autoduo       - auto-track your duo on entering a battleground")
         print(format("  Double-click your target's portrait to start or stop tracking them. Up to %d at once.",
             FF.MAX_TRACKED))
         return
@@ -675,7 +694,7 @@ SlashCmdList["FF"] = function(msg)
         if rest == "" then
             style = FF:NextIconStyle()
         elseif FF:IsIconStyle(rest) then
-            style = rest
+            style = FF:NormalizeIconStyle(rest)   -- por si escribio un nombre viejo
         else
             print("|cff40ff40[FF]|r Unknown icon. Use: " .. FF:IconStyleList())
             return
@@ -699,11 +718,9 @@ SlashCmdList["FF"] = function(msg)
         end
         if FF.RefreshArrows then FF:RefreshArrows() end
 
-    elseif cmd == "autoduo" then
-        FF_Settings.autoDuo = not FF_Settings.autoDuo
-        -- Este si se imprime: es lo unico que no se ve en ningun lado.
-        print("|cff40ff40[FF]|r Auto-track your duo in battlegrounds:",
-            FF_Settings.autoDuo and "on" or "off")
+    elseif cmd == "hp" then
+        FF_Settings.showHealth = not FF_Settings.showHealth
+        if FF.RefreshArrows then FF:RefreshArrows() end
 
     elseif cmd == "track" then
         FF:StartTracking(rest)
@@ -714,42 +731,6 @@ SlashCmdList["FF"] = function(msg)
         FF:StartTracking(msg)
     end
 end
-
---=========================================================================--
-
-FF.lastSoloPartyMate = nil -- nombre del unico companero de party antes de entrar a la instancia
-
-local function RememberPartyIfSmall()
-    if IsInInstance() then return end -- solo nos interesa la party de "afuera" (sala de espera/mundo abierto)
-    if GetNumPartyMembers() == 1 and GetNumRaidMembers() == 0 then
-        FF.lastSoloPartyMate = UnitName("party1")
-    elseif GetNumPartyMembers() == 0 and GetNumRaidMembers() == 0 then
-        FF.lastSoloPartyMate = nil -- solo/a, no hay dupla que recordar
-    end
-    -- si es una party/banda mas grande, no tocamos lastSoloPartyMate: no
-    -- sabriamos a cual de varios elegir, asi que dejamos el ultimo valor
-    -- de cuando SI fue una dupla clara (o nil si nunca lo fue).
-end
-
-local autoDuoFrame = CreateFrame("Frame")
-autoDuoFrame:RegisterEvent("GROUP_ROSTER_UPDATE")
-autoDuoFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
-autoDuoFrame:SetScript("OnEvent", function(self, event)
-    if event == "GROUP_ROSTER_UPDATE" then
-        RememberPartyIfSmall()
-        return
-    end
-
-    -- PLAYER_ENTERING_WORLD: si acabamos de entrar a un BG, ya solos/as
-    -- no tenemos grupo tenemos, y teniamos una dupla recordada de antes,
-    -- la empezamos a seguir sola (a menos que ya estemos siguiendo a
-    -- alguien, para no pisar una eleccion manual).
-    local inInstance, instanceType = IsInInstance()
-    if inInstance and instanceType == "pvp" and FF_Settings and FF_Settings.autoDuo
-        and FF.lastSoloPartyMate and not FF.tracked[1] then
-        FF:StartTracking(FF.lastSoloPartyMate)
-    end
-end)
 
 --=========================================================================--
 -- Carga de SavedVariables
@@ -775,7 +756,8 @@ initFrame:SetScript("OnEvent", function(self, event, addonName)
     FF_Settings.soundEnabled     = nil
 
     if FF_Settings.units == nil then FF_Settings.units = "meters" end
-    if FF_Settings.autoDuo == nil then FF_Settings.autoDuo = true end
+    if FF_Settings.showHealth == nil then FF_Settings.showHealth = true end
+    FF_Settings.autoDuo = nil   -- opcion sacada
     FF_Settings.iconStyle = FF:NormalizeIconStyle(FF_Settings.iconStyle)
     FF_Settings.zoneScale = FF_Settings.zoneScale or {} -- calibracion por zona, se guarda entre sesiones
 

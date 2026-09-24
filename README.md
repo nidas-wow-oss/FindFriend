@@ -15,7 +15,8 @@ straight ahead.
 The colour tells you how well you are aimed: **pale blue and glowing** when
 they are in front of you (left), **yellow** when you still have to turn
 (right), and green when you are basically on top of them. It also shows an
-estimated time to reach them once it knows how fast you move.
+estimated time to reach them once it knows how fast you move, and their
+health percentage - green, yellow or red, like a health bar.
 
 You can track up to **3 people at the same time**, one arrow each.
 
@@ -32,9 +33,9 @@ move them all.
 | `/ff off` | Stop tracking everyone |
 | `/ff off <name>` | Stop tracking just that one |
 | `/ff units` | Switch between meters and yards |
-| `/ff icon` | Next arrow icon (or `/ff icon glow` to pick one) |
+| `/ff hp` | Show or hide their health percentage |
+| `/ff icon` | Next arrow icon (or `/ff icon 3` to pick one) |
 | `/ff test` | Try the arrow without needing another player |
-| `/ff autoduo` | Auto-track your duo when you enter a battleground |
 
 ## Does the other person need this addon?
 
@@ -49,10 +50,13 @@ exchanged is its own.
 
 ## Arrow icons
 
-Six styles: `arrow`, `chip`, `gloss`, `glow`, `neon` and `blizz`. The first
-five load `.tga` files from `Media/` that are **not included** — they are game
-files, so you copy them yourself. `Media/LEEME.txt` says which ones and from
-where. `blizz` uses a texture already in the game and needs nothing.
+Six styles, picked by number: `/ff icon 1` through `/ff icon 6`, or just
+`/ff icon` to step to the next one.
+
+Styles 1 to 5 load `.tga` files from `Media/` that are **not included** — they
+are game files, so you copy them yourself; `Media/LEEME.txt` says which ones
+and from where. **Style 6 uses a texture already in the game and needs
+nothing**, so it works out of the box.
 
 ## Install
 
