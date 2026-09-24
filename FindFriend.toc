@@ -1,6 +1,6 @@
 ## Interface: 30300
-## Title: Find Friend |cff808080(standalone test)|r
-## Notes: Flecha brujula para encontrar a un companero de grupo/banda. Logica extraida y reimplementada a partir de la funcion "Track Player" de Carbonite (Nx.Map:DrT1 / Nx.Com:UpI / Nx.Map:UpG). Pensado para probarse suelto antes de integrarlo a Nidhaus_UnitFrames.
+## Title: Find Friend
+## Notes: A compass arrow that points to a party or raid member, with their name and distance. Track up to 3 at once. Double-click a portrait to start, double-click an arrow to remove it. Type /ff for commands.
 ## Author: Nidhaus
 ## Version: 0.1.0
 ## SavedVariables: FF_Settings
